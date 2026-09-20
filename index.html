@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vanilla JS Music Player</title>
+  <style>
+    .box {
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(136deg, #111118 0%, #1a1a2e 100%);
+      color: #00f0ff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+      font-family: 'Courier New', Courier, monospace;
+      margin: 0;
+      box-sizing: border-box;
+    }
+
+    .box h1 {
+      color: #00f0ff;
+      font-size: 2.2rem;
+      text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .progress-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 80%;
+      max-width: 450px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 240, 255, 0.2);
+    }
+
+    input[type='range'] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #111;
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+      border: 1px solid rgba(0, 240, 255, 0.3);
+    }
+
+    input[type='range']::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #00f0ff;
+      box-shadow: 0 0 8px #00f0ff, 0 0 20px rgba(0, 240, 255, 0.5);
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    input[type='range']::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    button {
+      background: transparent;
+      color: #00f0ff;
+      border: 1px solid #00f0ff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      letter-spacing: 1px;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 5px rgba(0, 240, 255, 0.1);
+    }
+
+    button:hover {
+      background: #00f0ff;
+      color: #111;
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
+    }
+
+    .playlist-controls {
+      display: flex;
+      gap: 15px;
+    }
+
+    .volume-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      width: 60%;
+      max-width: 250px;
+    }
+
+    .time {
+      font-size: 12px;
+      color: #00f0ff;
+      opacity: 0.7;
+      font-family: monospace;
+    }
+
+    .volume-container label {
+      font-size: 0.9rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="box">
+    <h1 id="songTitle">TITLE</h1>
+
+    <div class="progress-container">
+      <span id="currentTime" class="time">00:00</span>
+      <input
+        id="progressRange"
+        type="range"
+        min="0"
+        max="100"
+        step="0.1"
+        value="0"
+      />
+      <span id="durationTime" class="time">00:00</span>
+    </div>
+
+    <button id="playBtn">▶ PLAY</button>
+
+    <div class="playlist-controls">
+      <button id="prevBtn">◀ PREV</button>
+      <button id="nextBtn">NEXT ▶</button>
+    </div>
+
+    <div class="volume-container">
+      <label id="volumeLabel" for="volumeRange">🔊 Volume: 100%</label>
+      <input
+        id="volumeRange"
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        value="1"
+      />
+    </div>
+  </div>
+
+  <script>
+    const playlist = [
+      {
+        title: 'STAGE THEME 1',
+        url: 'https://github.com/cwkim5/My-Ost-JukeBox/raw/main/Text%20project%201.mp3',
+      },
+      {
+        title: 'STAGE THEME 2',
+        url: 'https://github.com/cwkim5/My-Ost-JukeBox/raw/main/STAGE%20THEME%202.mp3',
+      },
+      {
+        title: 'STAGE THEME 3',
+        url: 'https://github.com/cwkim5/My-Ost-JukeBox/raw/main/Theme%203.mp3',
+      },
+      {
+        title: 'STAGE 1 BOSS THEME',
+        url: 'https://github.com/cwkim5/My-Ost-JukeBox/raw/main/STAGE%201%20BOSS.mp3',
+      },
+    ];
+
+    let currentIndex = 0;
+    let volume = 1;
+    let backgroundMusic = null;
+
+    // DOM 요소 선택
+    const songTitleEl = document.getElementById('songTitle');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationTimeEl = document.getElementById('durationTime');
+    const progressRangeEl = document.getElementById('progressRange');
+    const playBtnEl = document.getElementById('playBtn');
+    const prevBtnEl = document.getElementById('prevBtn');
+    const nextBtnEl = document.getElementById('nextBtn');
+    const volumeRangeEl = document.getElementById('volumeRange');
+    const volumeLabelEl = document.getElementById('volumeLabel');
+
+    // 시간 포맷 함수
+    const formatTime = (secs) => {
+      if (isNaN(secs)) return '00:00';
+      const minutes = Math.floor(secs / 60);
+      const seconds = Math.floor(secs % 60);
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    };
+
+    // 오디오 객체 생성 및 이벤트 바인딩
+    const createAudio = (url) => {
+      const audio = new Audio(url);
+      audio.volume = volume;
+
+      audio.addEventListener('loadedmetadata', () => {
+        durationTimeEl.textContent = formatTime(audio.duration);
+        progressRangeEl.max = audio.duration;
+      });
+
+      audio.addEventListener('timeupdate', () => {
+        currentTimeEl.textContent = formatTime(audio.currentTime);
+        progressRangeEl.value = audio.currentTime;
+      });
+
+      audio.addEventListener('ended', () => {
+        nextSong();
+      });
+
+      return audio;
+    };
+
+    // 초기화 함수
+    const initPlayer = () => {
+      songTitleEl.textContent = playlist[currentIndex].title;
+      backgroundMusic = createAudio(playlist[currentIndex].url);
+    };
+
+    // 재생 / 일시정지 토글
+    const playAudio = () => {
+      if (backgroundMusic.paused) {
+        backgroundMusic.play()
+          .then(() => {
+            playBtnEl.textContent = '⏸ PAUSE';
+            console.log('Now Playing...');
+          })
+          .catch((error) => {
+            console.error('Wait, It has some trouble!', error);
+          });
+      } else {
+        backgroundMusic.pause();
+        playBtnEl.textContent = '▶ PLAY';
+        console.log('Pause!');
+      }
+    };
+
+    // 곡 전환
+    const switchSong = (newIndex) => {
+      backgroundMusic.pause();
+      playBtnEl.textContent = '▶ PLAY';
+
+      currentIndex = newIndex;
+      songTitleEl.textContent = playlist[currentIndex].title;
+      
+      backgroundMusic = createAudio(playlist[currentIndex].url);
+      currentTimeEl.textContent = '00:00';
+      progressRangeEl.value = 0;
+
+      playAudio();
+    };
+
+    const prevSong = () => {
+      let newIndex = currentIndex - 1;
+      if (newIndex < 0) {
+        newIndex = playlist.length - 1;
+      }
+      switchSong(newIndex);
+    };
+
+    const nextSong = () => {
+      let newIndex = currentIndex + 1;
+      if (newIndex >= playlist.length) {
+        newIndex = 0;
+      }
+      switchSong(newIndex);
+    };
+
+    // 이벤트 리스너 등록
+    playBtnEl.addEventListener('click', playAudio);
+    prevBtnEl.addEventListener('click', prevSong);
+    nextBtnEl.addEventListener('click', nextSong);
+
+    progressRangeEl.addEventListener('input', (e) => {
+      if (backgroundMusic) {
+        backgroundMusic.currentTime = e.target.value;
+      }
+    });
+
+    volumeRangeEl.addEventListener('input', (e) => {
+      volume = parseFloat(e.target.value);
+      if (backgroundMusic) {
+        backgroundMusic.volume = volume;
+      }
+      volumeLabelEl.textContent = `🔊 Volume: ${Math.round(volume * 100)}%`;
+    });
+
+    // 앱 실행
+    initPlayer();
+  </script>
+</body>
+</html>
